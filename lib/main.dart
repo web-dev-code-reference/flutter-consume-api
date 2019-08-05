@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 
 void main() =>runApp(App());
 
+//global variable for useriId;
+String userId;
+
 class Urls{
   static const BASE_API_URL = "https://jsonplaceholder.typicode.com";
 }
@@ -36,14 +39,6 @@ class _LoginState extends State<Login> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        child: Icon(Icons.add),
-        onPressed: (){
-          Navigator.push(context, MaterialPageRoute(
-            builder: (context)=> NewPost(),
-          ));
-        },
-      ),
       appBar: AppBar(title: Text('Log in')),
       body: Padding(
           padding:const EdgeInsets.all(32.0),
@@ -98,8 +93,11 @@ class _LoginState extends State<Login> {
                       );
                       return;
                     } else {
-                      final userWithUsernameExists = users.any((u)=>u['username']== _usernameController.text);
+                      final user = users.where((u)=>u['username']== _usernameController.text).first;
+                      final userWithUsernameExists = user != null;
                       if(userWithUsernameExists){
+                        //storing userid in global is not good in real world app, use storage, this is just an example
+                        userId = user['id'].toString();
                         Navigator.push(
                           context, 
                           MaterialPageRoute(
@@ -179,7 +177,15 @@ class Posts extends StatelessWidget {
           }
           return Center(child: CircularProgressIndicator(),);
         },
-      )
+      ),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.add),
+        onPressed: (){
+          Navigator.push(context, MaterialPageRoute(
+            builder: (context)=> NewPost(),
+          ));
+        },
+      ),
     );
   }
 }
@@ -259,6 +265,11 @@ class NewPost extends StatefulWidget {
 }
 
 class _NewPostState extends State<NewPost> {
+
+  final _titleController = TextEditingController();
+  final _bodyController = TextEditingController();
+  bool _isLoading = false; //use to render the loading screen.
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -268,17 +279,75 @@ class _NewPostState extends State<NewPost> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-              TextField(decoration: InputDecoration(hintText: 'Title')),
-              TextField(decoration: InputDecoration(hintText: 'body')),
+              TextField(
+                controller: _titleController,
+                decoration: InputDecoration(hintText: 'Title')),
+              TextField(
+                controller: _bodyController,
+                decoration: InputDecoration(hintText: 'body')),
               Container(height: 40),
-              SizedBox(
+              _isLoading ? CircularProgressIndicator() : SizedBox( 
+              
                 width: double.infinity,
-                height: 50,
+                height: 50,  
                 child: RaisedButton(
                   color:Colors.blue,
                   child: Text('Submit', style: TextStyle(color: Colors.white)),
                   onPressed: (){
-
+                    if(_titleController.text.isEmpty || _bodyController.text.isEmpty){
+                      showDialog(
+                        builder: (context) => AlertDialog(
+                          title: Text('Failure'),
+                          content: Text('You need to input the title and the body of the post'),
+                          actions: <Widget>[FlatButton(
+                            onPressed: (){
+                              Navigator.pop(context);
+                            },
+                            child: Text('ok'),
+                          )]
+                        ),
+                        context: context,
+                      );
+                      return;
+                    }
+                      final post = {
+                        'title': _titleController.text,
+                        'body': _bodyController.text,
+                        'userId': userId,
+                      };
+                      setState(() {
+                        _isLoading = true; 
+                      });
+                      ApiService.addPost(post)
+                      .then((success){
+                        setState(() {
+                          _isLoading = false; 
+                        });
+                        String title, text;
+                        if(success){
+                          title="Success";
+                          text="Your post has been successfully submitted";
+                        } else{
+                          title = "Error";
+                          text = "An error  occurued while submitting your post";
+                        }
+                        showDialog(
+                          builder: (context)=>AlertDialog(
+                            title: Text(title),
+                            content: Text(text),
+                            actions: <Widget>[
+                              FlatButton(
+                                onPressed: (){
+                                  Navigator.pop(context);
+                                },
+                                child: Text('ok'),
+                              )
+                            ],
+                          ),
+                          context: context,
+                        );
+                      });
+                    
                   },
                 ),
               )
